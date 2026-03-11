@@ -27,6 +27,12 @@ fi
 
 cd "${APP_DIR}"
 
+# Asegurar permisos de ejecucion (git pull puede resetearlos)
+chmod +x "${APP_DIR}/deploy/gce/autopull.sh" 2>/dev/null || true
+chmod +x "${APP_DIR}/deploy/gce/setup-autopull.sh" 2>/dev/null || true
+chmod +x "${APP_DIR}/deploy/gce/update.sh" 2>/dev/null || true
+chmod +x "${APP_DIR}/deploy/gce/bootstrap.sh" 2>/dev/null || true
+
 log "Comprobando cambios remotos..."
 git fetch "${REMOTE}" "${BRANCH}" >> "${LOG_FILE}" 2>&1
 

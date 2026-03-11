@@ -24,7 +24,7 @@ cat > "${CRON_FILE}" <<EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-*/5 * * * * root ${SCRIPT_PATH}
+*/5 * * * * root /bin/bash ${SCRIPT_PATH}
 EOF
 
 chmod 644 "${CRON_FILE}"
