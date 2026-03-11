@@ -1,10 +1,11 @@
-import { Bot, Context, GrammyError, HttpError } from "grammy";
+import { Bot, Context, GrammyError, HttpError, InputFile } from "grammy";
 import { AppConfig } from "../../config/env.js";
 import { Agent } from "../../core/agent/agent.js";
 import { FirestoreMemoryStore } from "../../core/memory/firestore.js";
 import { MemoryService } from "../../core/memory/service.js";
 import { SqliteMemoryStore } from "../../core/memory/sqlite.js";
 import { ResilientLlmClient } from "../llm/client.js";
+import { ElevenLabsTtsClient } from "../voice/elevenLabs.js";
 import { logger } from "../../shared/logger.js";
 
 const MAX_GROQ_FREE_AUDIO_BYTES = 25 * 1024 * 1024;
@@ -15,6 +16,7 @@ export function createBot(config: AppConfig): Bot {
   const cloudMemoryStore = new FirestoreMemoryStore(config);
   const memoryService = new MemoryService(localMemoryStore, cloudMemoryStore);
   const llmClient = new ResilientLlmClient(config);
+  const ttsClient = config.elevenLabsApiKey ? new ElevenLabsTtsClient(config) : undefined;
   const agent = new Agent(config, llmClient, memoryService);
 
   bot.use(async (ctx, next) => {
@@ -47,7 +49,7 @@ export function createBot(config: AppConfig): Bot {
   bot.on("message:text", async (ctx) => {
     const text = ctx.message.text.trim();
     if (!text) return;
-    await handleUserInteraction(ctx, agent, text);
+    await handleUserInteraction(ctx, agent, text, ttsClient);
   });
 
   bot.on("message:photo", async (ctx) => {
@@ -57,7 +59,7 @@ export function createBot(config: AppConfig): Bot {
     if (!photo) return;
     const caption = ctx.message?.caption?.trim() || "He subido una foto.";
     const text = `${caption}\n[Imagen adjunta con file_id: ${photo.file_id}]`;
-    await handleUserInteraction(ctx, agent, text);
+    await handleUserInteraction(ctx, agent, text, ttsClient);
   });
 
   bot.on("message:voice", async (ctx) => {
@@ -67,7 +69,7 @@ export function createBot(config: AppConfig): Bot {
       mimeType: ctx.message.voice.mime_type ?? "audio/ogg",
       fallbackFilename: "voice-message.ogg",
       prefix: "Transcripcion del audio de voz",
-    });
+    }, ttsClient);
   });
 
   bot.on("message:audio", async (ctx) => {
@@ -77,7 +79,7 @@ export function createBot(config: AppConfig): Bot {
       mimeType: ctx.message.audio.mime_type ?? "audio/mpeg",
       fallbackFilename: ctx.message.audio.file_name ?? "audio-message",
       prefix: ctx.message.caption?.trim() || "Transcripcion del audio",
-    });
+    }, ttsClient);
   });
 
   bot.catch((error) => {
@@ -97,7 +99,12 @@ export function createBot(config: AppConfig): Bot {
   return bot;
 }
 
-async function handleUserInteraction(ctx: Context, agent: Agent, text: string): Promise<void> {
+async function handleUserInteraction(
+  ctx: Context,
+  agent: Agent,
+  text: string,
+  ttsClient?: ElevenLabsTtsClient,
+): Promise<void> {
   const chatId = ctx.chat?.id;
 
   if (chatId === undefined) {
@@ -113,9 +120,31 @@ async function handleUserInteraction(ctx: Context, agent: Agent, text: string): 
     });
 
     await ctx.reply(reply);
+    await sendVoiceReply(ctx, ttsClient, reply);
   } catch (error) {
     logger.error("Error en el loop del agente.", error);
     await ctx.reply("He tenido un error procesando tu mensaje.");
+  }
+}
+
+async function sendVoiceReply(
+  ctx: Context,
+  ttsClient: ElevenLabsTtsClient | undefined,
+  text: string,
+): Promise<void> {
+  if (!ttsClient) {
+    return;
+  }
+
+  try {
+    await ctx.replyWithChatAction("upload_document");
+    const audio = await ttsClient.synthesize(text);
+    await ctx.replyWithAudio(new InputFile(audio.buffer, audio.filename), {
+      title: "Curro",
+      performer: audio.performer,
+    });
+  } catch (error) {
+    logger.error("Error generando voz con ElevenLabs.", error);
   }
 }
 
@@ -133,6 +162,7 @@ async function handleAudioMessage(
   llmClient: ResilientLlmClient,
   config: AppConfig,
   input: TelegramAudioInput,
+  ttsClient?: ElevenLabsTtsClient,
 ): Promise<void> {
   if ((input.fileSize ?? 0) > MAX_GROQ_FREE_AUDIO_BYTES) {
     await ctx.reply("Ese audio supera el limite de 25 MB para transcripcion. Enviamelo mas corto o comprimido.");
@@ -173,7 +203,7 @@ async function handleAudioMessage(
       return;
     }
 
-    await handleUserInteraction(ctx, agent, `${input.prefix}:\n${normalized}`);
+    await handleUserInteraction(ctx, agent, `${input.prefix}:\n${normalized}`, ttsClient);
   } catch (error) {
     logger.error("Error transcribiendo audio con Groq.", error);
     await ctx.reply("He tenido un error al procesar ese audio.");

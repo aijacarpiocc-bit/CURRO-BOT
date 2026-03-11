@@ -5,6 +5,9 @@ dotenv.config();
 
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_GROQ_TRANSCRIPTION_MODEL = "whisper-large-v3-turbo";
+const DEFAULT_ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+const DEFAULT_ELEVENLABS_MODEL_ID = "eleven_multilingual_v2";
+const DEFAULT_ELEVENLABS_OUTPUT_FORMAT = "mp3_44100_128";
 const DEFAULT_MAX_ITERATIONS = 4;
 
 export interface AppConfig {
@@ -13,6 +16,10 @@ export interface AppConfig {
   groqApiKey: string;
   groqModel: string;
   groqTranscriptionModel: string;
+  elevenLabsApiKey?: string;
+  elevenLabsVoiceId: string;
+  elevenLabsModelId: string;
+  elevenLabsOutputFormat: string;
   openRouterApiKey?: string;
   openRouterModel?: string;
   dbPath: string;
@@ -65,6 +72,7 @@ function parsePositiveInteger(raw: string | undefined, fallback: number): number
 export function loadConfig(): AppConfig {
   const openRouterApiKey = optional("OPENROUTER_API_KEY");
   const openRouterModel = optional("OPENROUTER_MODEL");
+  const elevenLabsApiKey = optional("ELEVENLABS_API_KEY");
   const googleApplicationCredentials = optional("GOOGLE_APPLICATION_CREDENTIALS");
   const firestoreRootCollection = optional("FIRESTORE_ROOT_COLLECTION") ?? "curro_memory";
 
@@ -74,9 +82,13 @@ export function loadConfig(): AppConfig {
     groqApiKey: required("GROQ_API_KEY"),
     groqModel: optional("GROQ_MODEL") ?? DEFAULT_GROQ_MODEL,
     groqTranscriptionModel: optional("GROQ_TRANSCRIPTION_MODEL") ?? DEFAULT_GROQ_TRANSCRIPTION_MODEL,
+    elevenLabsVoiceId: optional("ELEVENLABS_VOICE_ID") ?? DEFAULT_ELEVENLABS_VOICE_ID,
+    elevenLabsModelId: optional("ELEVENLABS_MODEL_ID") ?? DEFAULT_ELEVENLABS_MODEL_ID,
+    elevenLabsOutputFormat: optional("ELEVENLABS_OUTPUT_FORMAT") ?? DEFAULT_ELEVENLABS_OUTPUT_FORMAT,
     dbPath: path.resolve(required("DB_PATH")),
     firestoreRootCollection,
     agentMaxIterations: parsePositiveInteger(optional("AGENT_MAX_ITERATIONS"), DEFAULT_MAX_ITERATIONS),
+    ...(elevenLabsApiKey ? { elevenLabsApiKey } : {}),
     ...(openRouterApiKey ? { openRouterApiKey } : {}),
     ...(openRouterModel ? { openRouterModel } : {}),
     ...(googleApplicationCredentials ? { googleApplicationCredentials: path.resolve(googleApplicationCredentials) } : {}),

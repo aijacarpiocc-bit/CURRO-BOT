@@ -34,6 +34,10 @@ El proyecto lee variables desde `.env`.
 - `TELEGRAM_ALLOWED_USER_IDS`
 - `GROQ_API_KEY`
 - `GROQ_TRANSCRIPTION_MODEL`
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_VOICE_ID`
+- `ELEVENLABS_MODEL_ID`
+- `ELEVENLABS_OUTPUT_FORMAT`
 - `OPENROUTER_API_KEY`
 - `OPENROUTER_MODEL`
 - `DB_PATH`
@@ -64,4 +68,6 @@ El proyecto lee variables desde `.env`.
 
 Curro puede procesar mensajes `voice` y `audio` de Telegram. Descarga el archivo desde Telegram, lo transcribe con Groq Speech-to-Text y usa la transcripcion como entrada del agente.
 
-Prueba de autopull en VM: OK
+## Voz
+
+Si `ELEVENLABS_API_KEY` esta configurada, Curro responde con texto y tambien con un audio MP3 generado por ElevenLabs. La voz por defecto es `Rachel`, usando el modelo `eleven_multilingual_v2`.
