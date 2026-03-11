@@ -1,0 +1,19 @@
+[Unit]
+Description=Curro Telegram Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=curro
+WorkingDirectory=/opt/curro
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/curro/.env
+ExecStart=/usr/bin/npm run start --prefix /opt/curro
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
