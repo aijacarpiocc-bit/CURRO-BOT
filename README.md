@@ -63,3 +63,5 @@ El proyecto lee variables desde `.env`.
 ## Audio
 
 Curro puede procesar mensajes `voice` y `audio` de Telegram. Descarga el archivo desde Telegram, lo transcribe con Groq Speech-to-Text y usa la transcripcion como entrada del agente.
+
+Prueba de autopull en VM: OK
