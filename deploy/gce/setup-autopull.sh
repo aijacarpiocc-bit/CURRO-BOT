@@ -1,20 +1,33 @@
 #!/usr/bin/env bash
-# setup-autopull.sh — Instala el cron de auto-pull para Curro.
-# Ejecutar UNA SOLA VEZ en la VM con: sudo bash deploy/gce/setup-autopull.sh
 set -euo pipefail
 
-SCRIPT_PATH="/opt/curro/deploy/gce/autopull.sh"
-LOG_PATH="/var/log/curro-autopull.log"
-CRON_LINE="*/5 * * * * ${SCRIPT_PATH} >> ${LOG_PATH} 2>&1"
+APP_DIR="/opt/curro"
+CRON_FILE="/etc/cron.d/curro-autopull"
+LOG_FILE="/var/log/curro-autopull.log"
+SCRIPT_PATH="${APP_DIR}/deploy/gce/autopull.sh"
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "Este script debe ejecutarse con sudo."
+  exit 1
+fi
+
+if [[ ! -f "${SCRIPT_PATH}" ]]; then
+  echo "No existe ${SCRIPT_PATH}. Sube primero el codigo de Curro a ${APP_DIR}."
+  exit 1
+fi
 
 chmod +x "${SCRIPT_PATH}"
-touch "${LOG_PATH}"
+touch "${LOG_FILE}"
+chmod 644 "${LOG_FILE}"
 
-# Añadir al crontab de root si no existe ya
-if crontab -l 2>/dev/null | grep -qF "${SCRIPT_PATH}"; then
-  echo "El cron de autopull ya está configurado."
-else
-  (crontab -l 2>/dev/null; echo "${CRON_LINE}") | crontab -
-  echo "Cron de autopull instalado: cada 5 minutos."
-  echo "Los logs se guardan en: ${LOG_PATH}"
-fi
+cat > "${CRON_FILE}" <<EOF
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+*/5 * * * * root ${SCRIPT_PATH}
+EOF
+
+chmod 644 "${CRON_FILE}"
+
+echo "Cron instalado en ${CRON_FILE}"
+echo "Log disponible en ${LOG_FILE}"

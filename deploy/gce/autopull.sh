@@ -1,37 +1,60 @@
 #!/usr/bin/env bash
-# autopull.sh — Comprueba si hay commits nuevos en GitHub y actualiza Curro automáticamente.
 set -euo pipefail
 
 APP_DIR="/opt/curro"
+BRANCH="main"
+REMOTE="origin"
 SERVICE_NAME="curro"
-LOG_PREFIX="[curro-autopull]"
+LOG_FILE="/var/log/curro-autopull.log"
+
+timestamp() {
+  date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
+log() {
+  echo "[$(timestamp)] $*" | tee -a "${LOG_FILE}"
+}
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "Este script debe ejecutarse con sudo." >&2
+  exit 1
+fi
+
+if [[ ! -d "${APP_DIR}/.git" ]]; then
+  log "No hay repositorio git en ${APP_DIR}. Se aborta."
+  exit 1
+fi
 
 cd "${APP_DIR}"
 
-# Obtener últimos cambios del remoto
-git fetch origin main --quiet
+log "Comprobando cambios remotos..."
+git fetch "${REMOTE}" "${BRANCH}" >> "${LOG_FILE}" 2>&1
 
-LOCAL_SHA=$(git rev-parse HEAD)
-REMOTE_SHA=$(git rev-parse origin/main)
+LOCAL_SHA="$(git rev-parse HEAD)"
+REMOTE_SHA="$(git rev-parse "${REMOTE}/${BRANCH}")"
 
 if [[ "${LOCAL_SHA}" == "${REMOTE_SHA}" ]]; then
-  # No hay cambios, no hacer nada
+  log "Sin cambios. SHA=${LOCAL_SHA}"
   exit 0
 fi
 
-echo "${LOG_PREFIX} Nuevos cambios detectados (${LOCAL_SHA:0:7} -> ${REMOTE_SHA:0:7}). Actualizando..."
-
-git pull --ff-only
+log "Cambios detectados. Local=${LOCAL_SHA} Remote=${REMOTE_SHA}"
+git pull --ff-only "${REMOTE}" "${BRANCH}" >> "${LOG_FILE}" 2>&1
 
 if [[ -f "${APP_DIR}/package-lock.json" ]]; then
-  npm ci --omit=dev
+  log "Instalando dependencias con npm ci..."
+  npm ci >> "${LOG_FILE}" 2>&1
 else
-  npm install --omit=dev
+  log "Instalando dependencias con npm install..."
+  npm install >> "${LOG_FILE}" 2>&1
 fi
 
-npm run build
-npm prune --omit=dev
+log "Compilando proyecto..."
+npm run build >> "${LOG_FILE}" 2>&1
 
+log "Podando dependencias de desarrollo..."
+npm prune --omit=dev >> "${LOG_FILE}" 2>&1
+
+log "Reiniciando servicio ${SERVICE_NAME}..."
 systemctl restart "${SERVICE_NAME}"
-
-echo "${LOG_PREFIX} Actualización completada. Curro reiniciado."
+log "Deploy completado."
