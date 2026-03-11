@@ -1,1 +1,0 @@
-Prueba de permisos de escritura - se puede borrar este archivo.
