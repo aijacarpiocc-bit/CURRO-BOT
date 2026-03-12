@@ -9,6 +9,7 @@ import { ElevenLabsTtsClient } from "../voice/elevenLabs.js";
 import { logger } from "../../shared/logger.js";
 
 const MAX_GROQ_FREE_AUDIO_BYTES = 25 * 1024 * 1024;
+type ReplyMode = "text" | "audio";
 
 export function createBot(config: AppConfig): Bot {
   const bot = new Bot(config.telegramBotToken);
@@ -41,6 +42,8 @@ export function createBot(config: AppConfig): Bot {
       [
         "Curro usa Telegram como interfaz local.",
         "Puedes hablar normalmente o decir 'recuerda que ...' para guardar una nota persistente.",
+        "Si me escribes por texto, respondo por texto salvo que me pidas explicitamente audio.",
+        "Si me mandas un audio, te respondo por audio.",
         "Herramienta disponible ahora: get_current_time.",
       ].join("\n"),
     );
@@ -49,7 +52,7 @@ export function createBot(config: AppConfig): Bot {
   bot.on("message:text", async (ctx) => {
     const text = ctx.message.text.trim();
     if (!text) return;
-    await handleUserInteraction(ctx, agent, text, ttsClient);
+    await handleUserInteraction(ctx, agent, text, detectReplyModeFromText(text), ttsClient);
   });
 
   bot.on("message:photo", async (ctx) => {
@@ -59,7 +62,7 @@ export function createBot(config: AppConfig): Bot {
     if (!photo) return;
     const caption = ctx.message?.caption?.trim() || "He subido una foto.";
     const text = `${caption}\n[Imagen adjunta con file_id: ${photo.file_id}]`;
-    await handleUserInteraction(ctx, agent, text, ttsClient);
+    await handleUserInteraction(ctx, agent, text, detectReplyModeFromText(caption), ttsClient);
   });
 
   bot.on("message:voice", async (ctx) => {
@@ -69,6 +72,7 @@ export function createBot(config: AppConfig): Bot {
       mimeType: ctx.message.voice.mime_type ?? "audio/ogg",
       fallbackFilename: "voice-message.ogg",
       prefix: "Transcripcion del audio de voz",
+      responseMode: "audio",
     }, ttsClient);
   });
 
@@ -79,6 +83,7 @@ export function createBot(config: AppConfig): Bot {
       mimeType: ctx.message.audio.mime_type ?? "audio/mpeg",
       fallbackFilename: ctx.message.audio.file_name ?? "audio-message",
       prefix: ctx.message.caption?.trim() || "Transcripcion del audio",
+      responseMode: "audio",
     }, ttsClient);
   });
 
@@ -103,6 +108,7 @@ async function handleUserInteraction(
   ctx: Context,
   agent: Agent,
   text: string,
+  replyMode: ReplyMode,
   ttsClient?: ElevenLabsTtsClient,
 ): Promise<void> {
   const chatId = ctx.chat?.id;
@@ -119,20 +125,26 @@ async function handleUserInteraction(
       userText: text,
     });
 
-    await ctx.reply(reply);
-    await sendVoiceReply(ctx, ttsClient, reply);
+    await sendReply(ctx, reply, replyMode, ttsClient);
   } catch (error) {
     logger.error("Error en el loop del agente.", error);
     await ctx.reply("He tenido un error procesando tu mensaje.");
   }
 }
 
-async function sendVoiceReply(
+async function sendReply(
   ctx: Context,
-  ttsClient: ElevenLabsTtsClient | undefined,
   text: string,
+  replyMode: ReplyMode,
+  ttsClient?: ElevenLabsTtsClient,
 ): Promise<void> {
+  if (replyMode === "text") {
+    await ctx.reply(text);
+    return;
+  }
+
   if (!ttsClient) {
+    await ctx.reply(text);
     return;
   }
 
@@ -145,7 +157,26 @@ async function sendVoiceReply(
     });
   } catch (error) {
     logger.error("Error generando voz con ElevenLabs.", error);
+    await ctx.reply(text);
   }
+}
+
+function detectReplyModeFromText(text: string): ReplyMode {
+  const normalized = normalizeText(text);
+  const explicitAudioPatterns = [
+    /\b(responde|respondeme|respondeme|contestame|contesta|contestame|dime|mandame|enviame)\b.*\b(audio|voz)\b/,
+    /\b(por|en|con)\s+(audio|voz)\b/,
+    /\b(nota de voz|mensaje de voz)\b/,
+  ];
+
+  return explicitAudioPatterns.some((pattern) => pattern.test(normalized)) ? "audio" : "text";
+}
+
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 interface TelegramAudioInput {
@@ -154,6 +185,7 @@ interface TelegramAudioInput {
   mimeType: string;
   fallbackFilename: string;
   prefix: string;
+  responseMode: ReplyMode;
 }
 
 async function handleAudioMessage(
@@ -203,7 +235,7 @@ async function handleAudioMessage(
       return;
     }
 
-    await handleUserInteraction(ctx, agent, `${input.prefix}:\n${normalized}`, ttsClient);
+    await handleUserInteraction(ctx, agent, `${input.prefix}:\n${normalized}`, input.responseMode, ttsClient);
   } catch (error) {
     logger.error("Error transcribiendo audio con Groq.", error);
     await ctx.reply("He tenido un error al procesar ese audio.");

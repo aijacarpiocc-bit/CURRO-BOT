@@ -71,3 +71,9 @@ Curro puede procesar mensajes `voice` y `audio` de Telegram. Descarga el archivo
 ## Voz
 
 Si `ELEVENLABS_API_KEY` esta configurada, Curro responde con texto y tambien con un audio MP3 generado por ElevenLabs. La voz por defecto es `Rachel`, usando el modelo `eleven_multilingual_v2`.
+
+Comportamiento actual:
+- si le escribes por texto, responde por texto
+- si en el texto le pides explicitamente que responda por audio o por voz, responde por audio
+- si le mandas un `voice` o un `audio`, responde por audio
+- no responde a la vez por texto y por audio salvo fallback tecnico si ElevenLabs falla
