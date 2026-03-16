@@ -5,3 +5,4 @@ Este archivo se ha creado en una rama aislada para verificar que Codex puede esc
 - Fecha: 2026-03-16
 - Rama: `codex/github-write-probe-20260316b`
 - Repo: `aijacarpiocc-bit/CURRO-BOT`
+- Comprobacion adicional: escritura confirmada tras revisar el token
