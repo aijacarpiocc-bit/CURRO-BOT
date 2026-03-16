@@ -70,6 +70,12 @@ export class MemoryService {
 
 function extractMemoryCandidate(text: string): string | null {
   const lower = text.toLowerCase();
+  const normalized = normalizeText(text);
+
+  const inboxPreference = extractInboxPreferenceMemory(normalized);
+  if (inboxPreference) {
+    return inboxPreference;
+  }
 
   const prefixes = [
     "recuerda que ",
@@ -88,6 +94,53 @@ function extractMemoryCandidate(text: string): string | null {
   }
 
   return null;
+}
+
+function extractInboxPreferenceMemory(normalizedText: string): string | null {
+  const isDefaultPreference =
+    normalizedText.includes("si no te lo especifico") ||
+    normalizedText.includes("si no te especifico") ||
+    normalizedText.includes("a partir de ahora") ||
+    normalizedText.includes("por defecto");
+
+  const isEmailPreference =
+    normalizedText.includes("correo") ||
+    normalizedText.includes("correos") ||
+    normalizedText.includes("gmail") ||
+    normalizedText.includes("mail");
+
+  if (!isDefaultPreference || !isEmailPreference) {
+    return null;
+  }
+
+  if (normalizedText.includes("bandeja principal") || normalizedText.includes("principal")) {
+    return "Si el usuario pide correos sin especificar categoria, revisar solo la bandeja principal de Gmail (category:primary).";
+  }
+
+  if (normalizedText.includes("promociones")) {
+    return "Si el usuario pide correos sin especificar categoria, revisar la bandeja de promociones de Gmail (category:promotions).";
+  }
+
+  if (normalizedText.includes("social")) {
+    return "Si el usuario pide correos sin especificar categoria, revisar la bandeja social de Gmail (category:social).";
+  }
+
+  if (normalizedText.includes("notificaciones") || normalizedText.includes("actualizaciones")) {
+    return "Si el usuario pide correos sin especificar categoria, revisar la bandeja de actualizaciones de Gmail (category:updates).";
+  }
+
+  if (normalizedText.includes("foros")) {
+    return "Si el usuario pide correos sin especificar categoria, revisar la bandeja de foros de Gmail (category:forums).";
+  }
+
+  return null;
+}
+
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function dedupeMessages(messages: StoredMessage[]): StoredMessage[] {

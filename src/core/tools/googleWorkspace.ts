@@ -23,6 +23,7 @@ type GogRunOptions = {
 };
 
 type SheetsCell = string | number | boolean | null;
+type GmailInboxSection = "all" | "primary" | "promotions" | "social" | "updates" | "forums";
 
 function getGoogleWorkspaceConfig(): {
   gogBin: string;
@@ -105,6 +106,86 @@ function readPositiveInteger(
 function readOptionalBoolean(args: Record<string, unknown>, key: string): boolean | undefined {
   const value = args[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function readOptionalInboxSection(
+  args: Record<string, unknown>,
+  key: string,
+): GmailInboxSection | ToolExecutionResult | undefined {
+  const value = args[key];
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    return badRequest("inbox_section debe ser una cadena.");
+  }
+
+  const normalized = normalizeText(value);
+  const aliases: Record<string, GmailInboxSection> = {
+    all: "all",
+    todas: "all",
+    todo: "all",
+    inbox: "all",
+    "bandeja de entrada": "all",
+    primary: "primary",
+    principal: "primary",
+    "bandeja principal": "primary",
+    promotions: "promotions",
+    promociones: "promotions",
+    social: "social",
+    sociales: "social",
+    updates: "updates",
+    update: "updates",
+    notificaciones: "updates",
+    actualizaciones: "updates",
+    forums: "forums",
+    foros: "forums",
+  };
+
+  const resolved = aliases[normalized];
+  if (!resolved) {
+    return badRequest("inbox_section debe ser all, primary, promotions, social, updates o forums.");
+  }
+
+  return resolved;
+}
+
+function buildGmailSearchQuery(baseQuery: string, inboxSection?: GmailInboxSection): string {
+  const query = baseQuery.trim();
+
+  if (!inboxSection) {
+    return query;
+  }
+
+  const fragments: string[] = [];
+
+  if (!/\bin:inbox\b/i.test(query)) {
+    fragments.push("in:inbox");
+  }
+
+  if (!/\bcategory:(primary|promotions|social|updates|forums)\b/i.test(query)) {
+    const categoryFragment =
+      inboxSection === "all"
+        ? undefined
+        : `category:${inboxSection}`;
+
+    if (categoryFragment) {
+      fragments.push(categoryFragment);
+    }
+  }
+
+  fragments.push(query);
+  return fragments.join(" ").trim();
 }
 
 function ensureWriteConfirmed(args: Record<string, unknown>): ToolExecutionResult | null {
@@ -301,13 +382,18 @@ const gmailSearchMessagesTool: RegisteredTool = {
   definition: {
     name: "gmail_search_messages",
     description:
-      "Busca correos individuales en Gmail usando la sintaxis de busqueda de Gmail. Requiere una cuenta Google autenticada en gog.",
+      "Busca correos individuales en Gmail usando la sintaxis de busqueda de Gmail. Puede filtrar por seccion del inbox: primary, promotions, social, updates, forums o all.",
     inputSchema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Consulta Gmail, por ejemplo in:inbox newer_than:7d from:ryanair.com.",
+          description: "Consulta Gmail opcional, por ejemplo newer_than:7d from:ryanair.com. Si se omite, busca en los ultimos 30 dias.",
+        },
+        inbox_section: {
+          type: "string",
+          description:
+            "Seccion del inbox a consultar: primary, promotions, social, updates, forums o all. all mantiene todas las categorias del inbox.",
         },
         max_results: {
           type: "integer",
@@ -318,14 +404,13 @@ const gmailSearchMessagesTool: RegisteredTool = {
           description: "Cuenta Google a usar si no quieres la configurada en GOG_ACCOUNT.",
         },
       },
-      required: ["query"],
       additionalProperties: false,
     },
   },
   async execute(args): Promise<ToolExecutionResult> {
-    const query = readRequiredString(args, "query", "query");
-    if (typeof query !== "string") {
-      return query;
+    const inboxSection = readOptionalInboxSection(args, "inbox_section");
+    if (typeof inboxSection !== "string" && inboxSection !== undefined) {
+      return inboxSection;
     }
 
     const maxResults = readPositiveInteger(args, "max_results", DEFAULT_MAX_RESULTS);
@@ -333,8 +418,17 @@ const gmailSearchMessagesTool: RegisteredTool = {
       return maxResults;
     }
 
+    const baseQuery = readOptionalString(args, "query") ?? "newer_than:30d";
+
     return runGogCommand({
-      args: ["gmail", "messages", "search", query, "--max", String(maxResults)],
+      args: [
+        "gmail",
+        "messages",
+        "search",
+        buildGmailSearchQuery(baseQuery, inboxSection),
+        "--max",
+        String(maxResults),
+      ],
       account: readOptionalString(args, "account"),
     });
   },
