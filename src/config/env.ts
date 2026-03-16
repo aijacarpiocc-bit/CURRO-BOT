@@ -26,6 +26,9 @@ export interface AppConfig {
   googleApplicationCredentials?: string;
   firestoreRootCollection: string;
   agentMaxIterations: number;
+  gogBin?: string;
+  gogAccount?: string;
+  gogCalendarId?: string;
 }
 
 function required(name: string): string {
@@ -75,6 +78,9 @@ export function loadConfig(): AppConfig {
   const elevenLabsApiKey = optional("ELEVENLABS_API_KEY");
   const googleApplicationCredentials = optional("GOOGLE_APPLICATION_CREDENTIALS");
   const firestoreRootCollection = optional("FIRESTORE_ROOT_COLLECTION") ?? "curro_memory";
+  const gogBin = optional("GOG_BIN");
+  const gogAccount = optional("GOG_ACCOUNT");
+  const gogCalendarId = optional("GOG_CALENDAR_ID");
 
   return {
     telegramBotToken: required("TELEGRAM_BOT_TOKEN"),
@@ -92,5 +98,8 @@ export function loadConfig(): AppConfig {
     ...(openRouterApiKey ? { openRouterApiKey } : {}),
     ...(openRouterModel ? { openRouterModel } : {}),
     ...(googleApplicationCredentials ? { googleApplicationCredentials: path.resolve(googleApplicationCredentials) } : {}),
+    ...(gogBin ? { gogBin } : {}),
+    ...(gogAccount ? { gogAccount } : {}),
+    ...(gogCalendarId ? { gogCalendarId } : {}),
   };
 }

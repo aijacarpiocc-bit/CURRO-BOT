@@ -10,6 +10,7 @@ Agente de IA personal ejecutado en local, con Telegram como unica interfaz, Groq
 - API key de Groq
 - API key de OpenRouter opcional
 - `service-account.json` de Firebase Admin para activar memoria en la nube
+- `gog` opcional si quieres que Curro opere sobre Gmail, Calendar, Drive, Docs y Sheets
 
 ## Uso
 
@@ -25,6 +26,7 @@ La opcion recomendada para mantener Curro siempre encendido y sin cambiar a webh
 Guia:
 
 - [docs/deploy-gce-free-tier.md](docs/deploy-gce-free-tier.md)
+- [docs/google-workspace.md](docs/google-workspace.md)
 
 ## Variables
 
@@ -43,6 +45,9 @@ El proyecto lee variables desde `.env`.
 - `DB_PATH`
 - `GOOGLE_APPLICATION_CREDENTIALS`
 - `FIRESTORE_ROOT_COLLECTION`
+- `GOG_BIN`
+- `GOG_ACCOUNT`
+- `GOG_CALENDAR_ID`
 
 ## Arquitectura
 
@@ -63,6 +68,7 @@ El proyecto lee variables desde `.env`.
 - Persistencia local en SQLite
 - Fallback limpio a memoria local si Firestore no esta disponible
 - No se ejecuta codigo arbitrario ni shell desde el chat
+- Google Workspace solo se expone mediante herramientas validadas sobre `gog`, no con shell libre
 
 ## Audio
 
@@ -77,3 +83,16 @@ Comportamiento actual:
 - si en el texto le pides explicitamente que responda por audio o por voz, responde por audio
 - si le mandas un `voice` o un `audio`, responde por audio
 - no responde a la vez por texto y por audio salvo fallback tecnico si ElevenLabs falla
+
+## Google Workspace
+
+Curro ya puede usar herramientas nativas para:
+
+- buscar emails en Gmail
+- enviar emails con confirmacion explicita
+- consultar agenda en Google Calendar
+- crear o actualizar eventos con confirmacion explicita
+- leer o escribir rangos en Google Sheets con confirmacion explicita
+- buscar archivos en Drive, leer Google Docs y listar contactos
+
+La integracion usa el CLI `gog`. El setup esta documentado en [docs/google-workspace.md](docs/google-workspace.md).
